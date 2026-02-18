@@ -1,9 +1,10 @@
 # Pyth BTC/USD 1-Year Historical Data
 
-Two ways to get Pyth BTC/USD data from [Pyth Benchmarks](https://benchmarks.pyth.network):
+Three ways to get Pyth BTC/USD data from [Pyth Benchmarks](https://benchmarks.pyth.network):
 
 1. **Daily bars (1 request)** – `fetch_pyth_btc_history.py` → TradingView History API  
 2. **1-minute interval (525,600 requests)** – `fetch_pyth_btc_1min.py` → Updates API with price feed ID
+3. **1-second interval (~31.5M points, 525,600 requests)** – `fetch_pyth_btc_1sec.py` → Updates API 60s windows, saves to DB + CSV/JSON
 
 ---
 
@@ -131,6 +132,46 @@ timestamp,datetime_utc,price,conf
   { "timestamp": 1738169460, "datetime_utc": "2025-01-29T16:51:00+00:00", "price": 102071.60250813, "conf": 44.20250813 },
   { "timestamp": 1738169520, "datetime_utc": "2025-01-29T16:52:00+00:00", "price": 102037.70348327, "conf": 40.50348327 }
 ]
+```
+
+---
+
+## 3. 1-second interval (Updates API + PostgreSQL)
+
+Uses 60-second windows (one request = 61 points, one per second). Saves to **PostgreSQL only** (table `pyth_btc_usd_1sec`).
+
+- **Table:** `pyth_btc_usd_1sec` (timestamp, datetime_utc, price, conf)
+- **Rate limit:** 30 req/10s → default delay 0.35s, ~48h for 1 year
+- **Database:** Set `DATABASE_URL` (env or `Backend/.env` or `--database-url`). The `?schema=public` param is stripped automatically for psycopg2.
+
+### Run 1-sec fetcher
+
+```bash
+pip install -r requirements.txt   # psycopg2-binary, python-dotenv
+export DATABASE_URL="postgresql://postgres:postgres_123_ultrastrong_password@145.239.86.18:5432/chartwin?schema=public"
+python fetch_pyth_btc_1sec.py
+```
+
+Or copy `Backend/.env` or create `pyth-btc-history/.env` with `DATABASE_URL`.
+
+Options:
+
+- `--delay 0.35` – seconds between requests (30 req/10s)
+- `--max-minutes N` – fetch only N minutes (e.g. `--max-minutes 60` for testing)
+- `--resume` – resume from checkpoint or DB
+- `--database-url URL` – override DATABASE_URL
+- `--start-days-ago N` – start from N days ago (default 365; use 1 for recent data if 1y ago returns empty)
+
+Example (test 5 minutes):
+
+```bash
+python fetch_pyth_btc_1sec.py --max-minutes 5
+```
+
+Example (test with recent data; use if 1y ago returns empty due to Benchmarks retention):
+
+```bash
+python fetch_pyth_btc_1sec.py --start-days-ago 1 --max-minutes 10
 ```
 
 ---
